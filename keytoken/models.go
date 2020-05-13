@@ -18,13 +18,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Assetsadapter/keytoken-adapter/message"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"io/ioutil"
 	"math/big"
 	"path/filepath"
 	"strconv"
 	"time"
-
+	
 	"github.com/asdine/storm"
 	"github.com/blocktree/go-owcrypt"
 	"github.com/blocktree/openwallet/common/file"
@@ -85,45 +86,45 @@ func (this *EthTransactionReceipt) ParseTransferEvent() map[string][]*TransferEv
 		num = removeOxFromHex(num)
 		array := []byte(num)
 		i := 0
-
+		
 		for i, _ = range num {
 			if num[i] != '0' {
 				break
 			}
 		}
-
+		
 		return string(array[i:len(num)])
 	}
-
+	
 	for i, _ := range this.Logs {
 		if len(this.Logs[i].Topics) != 3 {
 			continue
 		}
-
+		
 		if this.Logs[i].Topics[0] != ETH_TRANSFER_EVENT_ID {
 			continue
 		}
-
+		
 		if len(this.Logs[i].Data) != 66 {
 			continue
 		}
-
+		
 		prefix := string([]byte(this.Logs[i].Topics[1])[0:26:26])
 		if prefix != "0x000000000000000000000000" {
 			continue
 		}
-
+		
 		prefix = string([]byte(this.Logs[i].Topics[2])[0:26:26])
 		if prefix != "0x000000000000000000000000" {
 			continue
 		}
-
+		
 		address := this.Logs[i].Address
 		events := transferEvents[address]
 		if events == nil {
 			events = make([]*TransferEvent, 0)
 		}
-
+		
 		te := &TransferEvent{}
 		te.ContractAddress = this.Logs[i].Address
 		te.TokenFrom = "0x" + string([]byte(this.Logs[i].Topics[1])[26:66:66])
@@ -131,7 +132,7 @@ func (this *EthTransactionReceipt) ParseTransferEvent() map[string][]*TransferEv
 		te.Value = "0x" + removePrefix0(this.Logs[i].Data)
 		events = append(events, te)
 		transferEvents[address] = events
-
+		
 		//return &transferEvent
 	}
 	return transferEvents
@@ -184,13 +185,55 @@ type BlockTransaction struct {
 	Status           uint64
 }
 
+func ParseToBlockTransactions(block *message.RespBlock) []BlockTransaction {
+	result := make([]BlockTransaction, len(block.Txs))
+	for _, tx := range block.Txs {
+		result = append(result, BlockTransaction{
+			Hash:             tx.Hash,
+			BlockNumber:      fmt.Sprintf("%d", block.Height),
+			BlockHash:        block.Hash,
+			From:             tx.From,
+			To:               tx.To,
+			Gas:              "0",
+			GasPrice:         "0",
+			Value:            fmt.Sprintf("%d", tx.Amount),
+			Data:             "",
+			TransactionIndex: fmt.Sprintf("%d", tx.Nonce),
+			Timestamp:        time.Unix(tx.Time, 0).Format(TIME_POSTFIX),
+			BlockHeight:      block.Height,
+			FilterFunc:       nil,
+			Status:           0,
+		})
+	}
+	return result
+}
+
+func ParseToBlockTransaction(tx *message.Tx) *BlockTransaction {
+	return &BlockTransaction{
+		Hash:             tx.Hash,
+		BlockNumber:      "",
+		BlockHash:        "",
+		From:             tx.From,
+		To:               tx.To,
+		Gas:              "0",
+		GasPrice:         "0",
+		Value:            fmt.Sprintf("%d", tx.Amount),
+		Data:             "",
+		TransactionIndex: fmt.Sprintf("%d", tx.Nonce),
+		Timestamp:        time.Unix(tx.Time, 0).Format(TIME_POSTFIX),
+		BlockHeight:      0,
+		FilterFunc:       nil,
+		Status:           0,
+	}
+}
+
 func (this *BlockTransaction) GetAmountEthString() (string, error) {
 	amount, err := ConvertToBigInt(this.Value, 16)
 	if err != nil {
 		log.Errorf("convert amount to big.int failed, err= %v", err)
 		return "0", err
 	}
-	amountVal, err := ConverWeiStringToEthDecimal(amount.String())
+	amountVal, err := ConverKStringToKtoDecimal(amount.String())
 	if err != nil {
 		log.Errorf("convert tx.Amount to eth decimal failed, err=%v", err)
 		return "0", err
@@ -204,7 +247,7 @@ func (this *BlockTransaction) GetTxFeeEthString() (string, error) {
 		log.Errorf("convert tx.GasPrice failed, err= %v", err)
 		return "", err
 	}
-
+	
 	gas, err := ConvertToBigInt(this.Gas, 16)
 	if err != nil {
 		log.Errorf("convert tx.Gas failed, err=%v", err)
@@ -212,7 +255,7 @@ func (this *BlockTransaction) GetTxFeeEthString() (string, error) {
 	}
 	fee := big.NewInt(0)
 	fee.Mul(gasPrice, gas)
-	feeprice, err := ConverWeiStringToEthDecimal(fee.String())
+	feeprice, err := ConverKStringToKtoDecimal(fee.String())
 	if err != nil {
 		log.Errorf("convert fee failed, err=%v", err)
 		return "", err
@@ -232,6 +275,20 @@ type BlockHeader struct {
 	BlockHeight     uint64 //RecoverBlockHeader的时候进行初始化
 }
 
+func NewBlockHeader(block *message.RespBlock) *BlockHeader {
+	return &BlockHeader{
+		BlockNumber:     fmt.Sprintf("%d", block.Height),
+		BlockHash:       block.Hash,
+		GasLimit:        "0",
+		GasUsed:         "0",
+		Miner:           block.Miner,
+		Difficulty:      "",
+		TotalDifficulty: "",
+		PreviousHash:    block.PrevBlockHash,
+		BlockHeight:     block.Height,
+	}
+}
+
 func (this *Wallet) SaveAddress(dbpath string, addr *Address) error {
 	db, err := this.OpenDB(dbpath)
 	if err != nil {
@@ -239,7 +296,7 @@ func (this *Wallet) SaveAddress(dbpath string, addr *Address) error {
 		return err
 	}
 	defer db.Close()
-
+	
 	return db.Save(addr)
 }
 
@@ -250,7 +307,7 @@ func (this *Wallet) ClearAllTransactions(dbPath string) {
 		return
 	}
 	defer db.Close()
-
+	
 	var txs []BlockTransaction
 	err = db.All(&txs)
 	if err != nil {
@@ -265,7 +322,7 @@ func (this *Wallet) ClearAllTransactions(dbPath string) {
 			break
 		}
 	}
-
+	
 }
 
 func (this *Wallet) RestoreFromDb(dbPath string) error {
@@ -275,14 +332,14 @@ func (this *Wallet) RestoreFromDb(dbPath string) error {
 		return err
 	}
 	defer db.Close()
-
+	
 	var w Wallet
 	err = db.One("WalletID", this.WalletID, &w)
 	if err != nil {
 		log.Error("find wallet id[", this.WalletID, "] failed, err=", err)
 		return err
 	}
-
+	
 	wstr, _ := json.MarshalIndent(w, "", " ")
 	log.Debugf("wallet:%v", string(wstr))
 	*this = w
@@ -296,25 +353,25 @@ func (this *Wallet) DumpWalletDB(dbPath string) {
 		return
 	}
 	defer db.Close()
-
+	
 	var addresses []Address
 	err = db.All(&addresses)
 	if err != nil {
 		log.Errorf("get address failed, err=%v", err)
 		return
 	}
-
+	
 	for i, _ := range addresses {
 		fmt.Println("Address:", addresses[i].Address, " account:", addresses[i].Account, "hdpath:", addresses[i].HDPath)
 	}
-
+	
 	var txs []BlockTransaction
 	err = db.All(&txs)
 	if err != nil {
 		log.Errorf("get transactions failed, err = %v", err)
 		return
 	}
-
+	
 	for i, _ := range txs {
 		//fmt.Println("BlockHash:", txs[i].BlockHash, " BlockNumber:", txs[i].BlockNumber, "TransactionId:", txs[i].Hash),
 		fmt.Printf("print tx[%v] in block [%v] = %v\n", txs[i].Hash, txs[i].BlockNumber, txs[i])
@@ -328,14 +385,14 @@ func (this *Wallet) SaveTransactions(dbPath string, txs []BlockTransaction) erro
 		return err
 	}
 	defer db.Close()
-
+	
 	dbTx, err := db.Begin(true)
 	if err != nil {
 		log.Errorf("start transaction for db failed, err=%v", err)
 		return err
 	}
 	defer dbTx.Rollback()
-
+	
 	for i, _ := range txs {
 		err = dbTx.Save(&txs[i])
 		if err != nil {
@@ -354,9 +411,9 @@ func (this *Wallet) DeleteTransactionByHeight(dbPath string, height uint64) erro
 		return err
 	}
 	defer db.Close()
-
+	
 	var txs []BlockTransaction
-
+	
 	err = db.Find("BlockNumber", "0x"+strconv.FormatUint(height, 16), &txs)
 	if err != nil && err != storm.ErrNotFound {
 		log.Errorf("get transactions from block[%v] failed, err=%v", "0x"+strconv.FormatUint(height, 16), err)
@@ -365,14 +422,14 @@ func (this *Wallet) DeleteTransactionByHeight(dbPath string, height uint64) erro
 		log.Infof("no transactions found in block[%v] ", "0x"+strconv.FormatUint(height, 16))
 		return nil
 	}
-
+	
 	txdb, err := db.Begin(true)
 	if err != nil {
 		log.Errorf("start dbtx for delete tx failed, err=%v", err)
 		return err
 	}
 	defer txdb.Rollback()
-
+	
 	for i, _ := range txs {
 		err = txdb.DeleteStruct(&txs[i])
 		if err != nil {
@@ -386,17 +443,17 @@ func (this *Wallet) DeleteTransactionByHeight(dbPath string, height uint64) erro
 
 //HDKey 获取钱包密钥，需要密码
 func (this *Wallet) HDKey2(password string) (*hdkeystore.HDKey, error) {
-
+	
 	if len(password) == 0 {
 		log.Error("password of wallet empty.")
 		return nil, fmt.Errorf("password is empty")
 	}
-
+	
 	if len(this.KeyFile) == 0 {
 		log.Error("keyfile empty in wallet.")
 		return nil, errors.New("Wallet key is not exist!")
 	}
-
+	
 	keyjson, err := ioutil.ReadFile(this.KeyFile)
 	if err != nil {
 		return nil, err

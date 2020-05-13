@@ -21,7 +21,7 @@ func testInitWalletManager() *openw.WalletManager {
 	tc.ConfigDir = configFilePath
 	tc.EnableBlockScan = false
 	tc.SupportAssets = []string{
-		"ETH",
+		"KTO",
 	}
 	return openw.NewWalletManager(tc)
 	//tm.Init()
@@ -29,7 +29,7 @@ func testInitWalletManager() *openw.WalletManager {
 
 func TestWalletManager_CreateWallet(t *testing.T) {
 	tm := testInitWalletManager()
-	w := &openwallet.Wallet{Alias: "HELLO ETH", IsTrust: true, Password: "12345678"}
+	w := &openwallet.Wallet{Alias: "HELLO KTO", IsTrust: true, Password: "12345678"}
 	nw, key, err := tm.CreateWallet(testApp, w)
 	if err != nil {
 		log.Error(err)
@@ -74,8 +74,8 @@ func TestWalletManager_CreateAssetsAccount(t *testing.T) {
 
 	tm := testInitWalletManager()
 
-	walletID := "Vyd2Cq514mWUuA8zf6v7AQ1pyVonp6Er37"
-	account := &openwallet.AssetsAccount{Alias: "feesSupport", WalletID: walletID, Required: 1, Symbol: "ETH", IsTrust: true}
+	walletID := "WEfRog5M2cNxEE1jj1UiNvYHggqsc69aFD"
+	account := &openwallet.AssetsAccount{Alias: "feesSupport", WalletID: walletID, Required: 1, Symbol: "KTO", IsTrust: true}
 	account, address, err := tm.CreateAssetsAccount(testApp, walletID, "12345678", account, nil)
 	if err != nil {
 		log.Error(err)
@@ -92,7 +92,7 @@ func TestWalletManager_GetAssetsAccountList(t *testing.T) {
 
 	tm := testInitWalletManager()
 
-	walletID := "WBGYxZ6yEX582Mx8mGvygXevdLVc7NQnLM"
+	walletID := "WEfRog5M2cNxEE1jj1UiNvYHggqsc69aFD"
 	list, err := tm.GetAssetsAccountList(testApp, walletID, 0, 10000000)
 	if err != nil {
 		log.Error("unexpected error:", err)
@@ -111,15 +111,17 @@ func TestWalletManager_CreateAddress(t *testing.T) {
 
 	tm := testInitWalletManager()
 
-	walletID := "WBGYxZ6yEX582Mx8mGvygXevdLVc7NQnLM"
-	accountID := "AfF8aoW2M2bQwVc2aJ38cCGEcnXF3WCsma1Day7zGA4C"
+	walletID := "WEfRog5M2cNxEE1jj1UiNvYHggqsc69aFD"
+	accountID := "5j7CuL5NYEig8633bMjPiKsAco4Lsfveh99MDadesSJG"
 	address, err := tm.CreateAddress(testApp, walletID, accountID, 5)
 	if err != nil {
 		log.Error(err)
 		return
 	}
 
-	log.Info("address:", address)
+	for _, addr := range address {
+		log.Info("address:", addr)
+	}
 
 	tm.CloseDB(testApp)
 }

@@ -15,18 +15,44 @@
 
 package keytoken
 
-import "testing"
+import (
+	"github.com/Assetsadapter/keytoken-adapter/message"
+	"google.golang.org/grpc"
+	"testing"
+)
+
+func TestinitClient(t *testing.T) (*Client, error) {
+	conn, err := grpc.Dial("106.12.94.134:8545", grpc.WithInsecure())
+	if err != nil {
+		t.Errorf("init client connect failed, error %s \n", err.Error())
+		return nil, err
+	}
+	tw := &Client{
+		Debug:         true,
+		GreeterClient: message.NewGreeterClient(conn),
+	}
+
+	return tw, nil
+}
 
 func TestEthGetBlockNumber(t *testing.T) {
 
-	tw := Client{
-		BaseURL: "http://192.168.2.194:10002",
-		Debug:   true,
-	}
+	tw, _ := TestinitClient(t)
 
-	if r, err := tw.EthGetBlockNumber(); err != nil {
+	if r, err := tw.GetMaxBlockNumber(); err != nil {
 		t.Errorf("GetAccountNet failed: %v\n", err)
 	} else {
 		t.Logf("GetAccountNet return: \n\t%+v\n", r)
+	}
+}
+
+func TestClient_GetAddrBalance(t *testing.T) {
+	addr := ""
+
+	tw, _ := TestinitClient(t)
+	if r, err := tw.GetAddrBalance(addr); err != nil {
+		t.Errorf("GetAddrBalance failed: %v\n", err)
+	} else {
+		t.Logf("GetAddrBalance result:\n\t%+v\n", r)
 	}
 }

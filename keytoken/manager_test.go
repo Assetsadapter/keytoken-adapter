@@ -76,6 +76,6 @@ func TestWalletManager_GetAddrBalance(t *testing.T) {
 		t.Errorf("GetAddrBalance2 error: %v", err)
 		return
 	}
-	ethB, err := ConverWeiStringToEthDecimal(balance.String())
+	ethB, err := ConverKStringToKtoDecimal(balance.String())
 	log.Infof("ethB: %v", ethB)
 }

@@ -17,6 +17,8 @@ package keytoken
 import (
 	"errors"
 	"fmt"
+	"github.com/Assetsadapter/keytoken-adapter/message"
+	"google.golang.org/grpc"
 	"math/big"
 	"path/filepath"
 	"strings"
@@ -87,7 +89,7 @@ type WalletConfig struct {
 	//备份路径
 	BackupDir string
 	//钱包服务API
-	ServerAPI string
+	ServerRpcUrl string
 	//钱包安装的路径
 	//NodeInstallPath string
 	//钱包数据文件目录
@@ -143,68 +145,9 @@ func (this *WalletManager) InitAssetsConfig() (config.Configer, error) {
 
 func (this *WalletManager) LoadAssetsConfig(c config.Configer) error {
 
-	//this.Config.Symbol = c.String("Config.Symbol")     //SymbolID
-	//this.Config.MasterKey = c.String("MasterKey") //MasterKey
-	//curveType, err := c.Int64("CurveType")        //CurveType
-	//if err != nil {
-	//	log.Error("curve type failed, err=", err)
-	//	return err
-	//}
-
-	//this.Config.CurveType = CurveType
-	//this.Config.RootDir = c.String("RootDir") //rootDir
-	////钥匙备份路径
-	//this.Config.KeyDir = c.String("KeyDir") //filepath.Join(rootDir, "eth", "key")
-	////地址导出路径
-	//this.Config.AddressDir = c.String("AddressDir") //filepath.Join(rootDir, "eth", "address")
-	//区块链数据
-	//blockchainDir = filepath.Join(rootDir, strings.ToLower(SymbolID), "blockchain")
-	//配置文件路径
-	//this.Config.ConfigFilePath = c.String("ConfigFilePath") //ConfigFilePath //filepath.Join(rootDir, "eth", "conf") //filepath.Join("conf")
-	////配置文件名
-	//this.Config.ConfigFileName = c.String("ConfigFileName") //"eth.ini"
-	//区块链数据文件
-	//this.Config.BlockchainFile = c.String("BlockchainFile") //"blockchain.db"
-	//是否测试网络
-	//isTestNet, err := c.Bool("isTestNet")
-	//if err != nil {
-	//	log.Error("isTestNet error, err=", err)
-	//	return err
-	//}
-	//this.Config.IsTestNet = isTestNet //true
-
-	//本地数据库文件路径
-	//this.Config.DbPath = c.String("DbPath") //filepath.Join(rootDir, "eth", "db")
-	//备份路径
-	//this.Config.BackupDir = c.String("BackupDir") //filepath.Join(rootDir, "eth", "backup")
 	//钱包服务API
-	this.Config.ServerAPI = c.String("ServerAPI") //"http://127.0.0.1:8545"
+	this.Config.ServerRpcUrl = c.String("ServerRpcUrl") //"http://127.0.0.1:8545"
 
-	//threshold, err := c.Int64("Threshold")
-	//if err != nil {
-	//	log.Error("Threshold error, err=", err)
-	//	return err
-	//}
-	//this.Config.Threshold = big.NewInt(threshold) //decimal.NewFromFloat(5)
-	//this.ThreaholdStr = "5"
-	//汇总地址
-	//this.Config.SumAddress = c.String("SumAddress") //""
-	//汇总执行间隔时间
-	//cycleSeconds, err := c.Int64("CycleSeconds")
-	//if err != nil {
-	//	log.Error("CycleSeconds error, err=", err)
-	//	return err
-	//}
-	//this.Config.CycleSeconds = uint64(cycleSeconds) //c.Int64("CycleSeconds")
-	//	this.ChainId = 12
-	//this.Config.EthereumKeyPath = c.String("EthereumKeyPath") //"/Users/peter/workspace/bitcoin/wallet/src/github.com/keytoken/go-keytoken/chain/keystore"
-	//每次都向节点查询nonce
-	//localnonce, err := c.Bool("LocalNonce")
-	//if err != nil {
-	//	log.Error("LocalNonce error, err=", err)
-	//	return err
-	//}
-	//this.Config.LocalNonce = localnonce //c.Bool("LocalNonce")
 	//区块链ID
 	chainId, err := c.Int64("ChainID")
 	if err != nil {
@@ -213,10 +156,13 @@ func (this *WalletManager) LoadAssetsConfig(c config.Configer) error {
 	}
 	this.Config.ChainID = uint64(chainId) //c.Int64("ChainID") //12
 
-	//this.StorageOld = keystore.NewHDKeystore(this.Config.KeyDir, keystore.StandardScryptN, keystore.StandardScryptP)
-	//storage := hdkeystore.NewHDKeystore(this.Config.KeyDir, hdkeystore.StandardScryptN, hdkeystore.StandardScryptP)
-	//this.Storage = storage
-	client := &Client{BaseURL: this.Config.ServerAPI, Debug: false}
+	// 初始化远程 grpc 连接
+	connClient, err := grpc.Dial(this.Config.ServerRpcUrl, grpc.WithInsecure())
+	if err != nil {
+		log.Errorf("dial remote grpc server failed, error = %s \n", err.Error())
+		return err
+	}
+	client := &Client{Debug: false, GreeterClient: message.NewGreeterClient(connClient)}
 	this.WalletClient = client
 	this.Config.DataDir = c.String("dataDir")
 	fixGasLimit := c.String("fixGasLimit")
@@ -272,7 +218,7 @@ func (this *WalletConfig) LoadConfig(configFilePath string, configFileName strin
 	//备份路径
 	this.BackupDir = c.String("BackupDir") //filepath.Join(rootDir, "eth", "backup")
 	//钱包服务API
-	this.ServerAPI = c.String("ServerAPI") //"http://127.0.0.1:8545"
+	this.ServerRpcUrl = c.String("ServerRpcUrl") //"http://127.0.0.1:8545"
 
 	threshold, err := c.Int64("Threshold")
 	if err != nil {
@@ -349,7 +295,7 @@ func (this *WalletConfig) LoadConfig(configFilePath string, configFileName strin
 //	//备份路径
 //	c.BackupDir = filepath.Join(rootDir, strings.ToLower(c.Symbol), "backup")
 //	//钱包服务API
-//	c.ServerAPI = "http://127.0.0.1:8545" //"http://192.168.2.192:10025" //
+//	c.ServerRpcUrl = "http://127.0.0.1:8545" //"http://192.168.2.192:10025" //
 //	//钱包安装的路径
 //	//c.NodeInstallPath = ""
 //	//钱包数据文件目录
@@ -386,7 +332,7 @@ func (this *WalletConfig) LoadConfig(configFilePath string, configFileName strin
 //	this.StorageOld = keystore.NewHDKeystore(this.Config.KeyDir, keystore.StandardScryptN, keystore.StandardScryptP)
 //	storage := hdkeystore.NewHDKeystore(this.Config.KeyDir, hdkeystore.StandardScryptN, hdkeystore.StandardScryptP)
 //	this.Storage = storage
-//	client := &Client{BaseURL: this.Config.ServerAPI, Debug: false}
+//	client := &Client{BaseURL: this.Config.ServerRpcUrl, Debug: false}
 //	this.WalletClient = client
 //	return nil
 //}

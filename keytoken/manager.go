@@ -118,7 +118,7 @@ func NewWalletManager() *WalletManager {
 	//wm.StorageOld = keystore.NewHDKeystore(wm.Config.KeyDir, keystore.StandardScryptN, keystore.StandardScryptP)
 	//storage := hdkeystore.NewHDKeystore(wm.Config.KeyDir, hdkeystore.StandardScryptN, hdkeystore.StandardScryptP)
 	//wm.Storage = storage
-	client := &Client{BaseURL: wm.Config.ServerAPI, Debug: false}
+	client := &Client{BaseURL: wm.Config.ServerRpcUrl, Debug: false}
 	wm.WalletClient = client
 	wm.ContractDecoder = &EthContractDecoder{
 		wm: &wm,
@@ -298,36 +298,36 @@ func skipKeyFile(fi os.FileInfo) bool {
 	return false
 }
 
-func (this *WalletManager) SaveERC20TokenConfig(config *ERC20Token) error {
-	db, err := OpenDB(this.GetConfig().DbPath, ERC20TOKEN_DB)
-	defer db.Close()
-	if err != nil {
-		this.Log.Errorf("open db for path [%v] failed, err = %v", this.GetConfig().DbPath+"/"+ERC20TOKEN_DB, err)
-		return err
-	}
-	err = db.Save(config)
-	if err != nil {
-		this.Log.Errorf("save db for path [%v] failed, err = %v", this.GetConfig().DbPath+"/"+ERC20TOKEN_DB, err)
-		return err
-	}
-	return nil
-}
-
-func (this *WalletManager) GetERC20TokenList() ([]ERC20Token, error) {
-	db, err := OpenDB(this.GetConfig().DbPath, ERC20TOKEN_DB)
-	defer db.Close()
-	if err != nil {
-		this.Log.Errorf("open db for path [%v] failed, err = %v", this.GetConfig().DbPath+"/"+ERC20TOKEN_DB, err)
-		return nil, err
-	}
-	tokens := make([]ERC20Token, 0)
-	err = db.All(&tokens)
-	if err != nil {
-		this.Log.Errorf("query token list in db failed, err= %v", err)
-		return nil, err
-	}
-	return tokens, nil
-}
+//func (this *WalletManager) SaveERC20TokenConfig(config *ERC20Token) error {
+//	db, err := OpenDB(this.GetConfig().DbPath, ERC20TOKEN_DB)
+//	defer db.Close()
+//	if err != nil {
+//		this.Log.Errorf("open db for path [%v] failed, err = %v", this.GetConfig().DbPath+"/"+ERC20TOKEN_DB, err)
+//		return err
+//	}
+//	err = db.Save(config)
+//	if err != nil {
+//		this.Log.Errorf("save db for path [%v] failed, err = %v", this.GetConfig().DbPath+"/"+ERC20TOKEN_DB, err)
+//		return err
+//	}
+//	return nil
+//}
+//
+//func (this *WalletManager) GetERC20TokenList() ([]ERC20Token, error) {
+//	db, err := OpenDB(this.GetConfig().DbPath, ERC20TOKEN_DB)
+//	defer db.Close()
+//	if err != nil {
+//		this.Log.Errorf("open db for path [%v] failed, err = %v", this.GetConfig().DbPath+"/"+ERC20TOKEN_DB, err)
+//		return nil, err
+//	}
+//	tokens := make([]ERC20Token, 0)
+//	err = db.All(&tokens)
+//	if err != nil {
+//		this.Log.Errorf("query token list in db failed, err= %v", err)
+//		return nil, err
+//	}
+//	return tokens, nil
+//}
 
 //AddWalletInSummary 添加汇总钱包账户
 func (this *WalletManager) AddWalletInSummary(wid string, wallet *Wallet) {
@@ -693,9 +693,9 @@ func (this *WalletManager) GetNonceForAddress2(address string) (uint64, error) {
 	//}
 	//log.Debugf("sequent max nonce:%v", max)
 	//log.Debugf("sequent nonce count:%v", count)
-	txCount, err := this.WalletClient.ethGetTransactionCount(address)
+	txCount, err := this.WalletClient.ktoGetAddressNonceAt(address)
 	if err != nil {
-		log.Error("ethGetTransactionCount failed, err=", err)
+		log.Error("ktoGetAddressNonceAt failed, err=", err)
 		return 0, err
 	}
 	log.Debugf("txCount:%v", txCount)
@@ -727,9 +727,9 @@ func (this *WalletManager) GetNonceForAddress(address string) (uint64, error) {
 		this.Log.Infof("address[%v] has %v tx in pending queue of txpool.", address, txCount)
 	}
 
-	nonce, err := this.WalletClient.ethGetTransactionCount(address)
+	nonce, err := this.WalletClient.ktoGetAddressNonceAt(address)
 	if err != nil {
-		this.Log.Errorf("ethGetTransactionCount failed, err=%v", err)
+		this.Log.Errorf("ktoGetAddressNonceAt failed, err=%v", err)
 		return 0, err
 	}
 	return nonce, nil

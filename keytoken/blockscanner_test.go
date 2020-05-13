@@ -23,7 +23,7 @@ import (
 func TestWalletManager_EthGetTransactionByHash(t *testing.T) {
 	wm := testNewWalletManager()
 	txid := "0x5d5c8e90621947c9f81ddbf97e2fc32436a936562faff404f71d6186bb801752"
-	tx, err := wm.WalletClient.EthGetTransactionByHash(txid)
+	tx, err := wm.WalletClient.GetTxByHash(txid)
 	if err != nil {
 		t.Errorf("get transaction by has failed, err=%v", err)
 		return
@@ -44,9 +44,9 @@ func TestWalletManager_ethGetTransactionReceipt(t *testing.T) {
 
 func TestWalletManager_EthGetBlockNumber(t *testing.T) {
 	wm := testNewWalletManager()
-	maxBlockHeight, err := wm.WalletClient.EthGetBlockNumber()
+	maxBlockHeight, err := wm.WalletClient.GetMaxBlockNumber()
 	if err != nil {
-		t.Errorf("EthGetBlockNumber failed, err=%v", err)
+		t.Errorf("GetMaxBlockNumber failed, err=%v", err)
 		return
 	}
 	log.Infof("maxBlockHeight: %v", maxBlockHeight)

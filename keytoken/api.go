@@ -15,29 +15,26 @@
 package keytoken
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
-
+	
 	//"log"
 	"math/big"
 	"sort"
 	"strconv"
 	"strings"
-
+	
 	"time"
-
-	tool "github.com/blocktree/openwallet/common"
+	
+	"github.com/Assetsadapter/keytoken-adapter/message"
 	"github.com/blocktree/openwallet/log"
 	"github.com/blocktree/openwallet/openwallet"
-
-	"github.com/imroc/req"
-	"github.com/tidwall/gjson"
 )
 
 type Client struct {
-	BaseURL string
-	Debug   bool
+	Debug         bool
+	GreeterClient message.GreeterClient
 }
 
 type Response struct {
@@ -121,23 +118,12 @@ type TxpoolContent struct {
 func (this *TxpoolContent) GetSequentTxNonce(addr string) (uint64, uint64, uint64, error) {
 	txpool := this.Pending
 	var target map[string]BlockTransaction
-	/*if _, exist := txpool[addr]; !exist {
-		return 0, 0, 0, nil
-	}
-	if txpool[addr] == nil {
-		return 0, 0, 0, nil
-	}
-
-	if len(txpool[addr]) == 0 {
-		return 0, 0, 0, nil
-	}*/
 	for theAddr, _ := range txpool {
-		//log.Debugf("theAddr:%v, addr:%v", strings.ToLower(theAddr), strings.ToLower(addr))
 		if strings.ToLower(theAddr) == strings.ToLower(addr) {
 			target = txpool[theAddr]
 		}
 	}
-
+	
 	nonceList := make([]interface{}, 0)
 	for n, _ := range target {
 		tn, err := strconv.ParseUint(n, 10, 64)
@@ -147,14 +133,14 @@ func (this *TxpoolContent) GetSequentTxNonce(addr string) (uint64, uint64, uint6
 		}
 		nonceList = append(nonceList, tn)
 	}
-
+	
 	sort.Slice(nonceList, func(i, j int) bool {
 		if nonceList[i].(uint64) < nonceList[j].(uint64) {
 			return true
 		}
 		return false
 	})
-
+	
 	var min, max, count uint64
 	for i := 0; i < len(nonceList); i++ {
 		if i == 0 {
@@ -182,512 +168,121 @@ func (this *TxpoolContent) GetPendingTxCountForAddr(addr string) int {
 	return len(txpool[addr])
 }
 
-func (this *Client) ethGetTransactionCount(addr string) (uint64, error) {
-	params := []interface{}{
-		AppendOxToAddress(addr),
-		"pending",
-	}
-
-	result, err := this.Call("eth_getTransactionCount", 1, params)
+// 获取地址交易nonce值
+func (this *Client) ktoGetAddressNonceAt(addr string) (uint64, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	respNonce, err := this.GreeterClient.GetAddressNonceAt(ctx, &message.ReqNonce{Address:addr})
 	if err != nil {
-		//errInfo := fmt.Sprintf("get block[%v] failed, err = %v \n", blockNumStr,  err)
-		log.Errorf("get transaction count failed, err = %v \n", err)
+		log.Errorf("GetAddressNonceAt failed, error = %s", err.Error())
 		return 0, err
 	}
-
-	if result.Type != gjson.String {
-		log.Errorf("result type failed. ")
-		return 0, errors.New("result type failed. ")
-	}
-
-	//blockNum, err := ConvertToBigInt(result.String(), 16)
-	nonceStr := result.String()
-	nonceStr = strings.ToLower(nonceStr)
-	nonceStr = removeOxFromHex(nonceStr)
-	nonce, err := strconv.ParseUint(nonceStr, 16, 64)
-	if err != nil {
-		log.Errorf("parse nounce failed, err=%v", err)
-		return 0, err
-	}
-	return nonce, nil
+	return respNonce.Nonce, nil
 }
 
-func (this *Client) EthGetTxPoolContent() (*TxpoolContent, error) {
-	result, err := this.Call("txpool_content", 1, nil)
+// 以txid获取交易详情
+func (this *Client) GetTxByHash(txid string) (*BlockTransaction, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	respTx, err := this.GreeterClient.GetTxByHash(ctx, &message.ReqTxByHash{Hash: txid})
 	if err != nil {
-		//errInfo := fmt.Sprintf("get block[%v] failed, err = %v \n", blockNumStr,  err)
-		log.Errorf("get tx pool failed, err = %v \n", err)
+		log.Errorf("GetTxByHash failed, error = %s\n", err.Error())
 		return nil, err
 	}
-
-	if result.Type != gjson.JSON {
-		errInfo := fmt.Sprintf("get tx pool content failed, result type is %v", result.Type)
-		log.Errorf(errInfo)
-		return nil, errors.New(errInfo)
-	}
-
-	var txpool TxpoolContent
-
-	err = json.Unmarshal([]byte(result.Raw), &txpool)
-	if err != nil {
-		log.Errorf("decode json [%v] failed, err=%v", []byte(result.Raw), err)
-		return nil, err
-	}
-
-	return &txpool, nil
+	return ParseToBlockTransaction(respTx), nil
 }
 
-func (this *Client) EthGetTransactionReceipt(transactionId string) (*EthTransactionReceipt, error) {
-	params := []interface{}{
-		transactionId,
-	}
-
-	var txReceipt EthTransactionReceipt
-	result, err := this.Call("eth_getTransactionReceipt", 1, params)
+// 以区块号获取区块详情
+func (this *Client) KtoGetBlockByNum(blockNum uint64) (*EthBlock, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	respBlock, err := this.GreeterClient.GetBlockByNum(ctx, &message.ReqBlockByNumber{Height: blockNum})
 	if err != nil {
-		//errInfo := fmt.Sprintf("get block[%v] failed, err = %v \n", blockNumStr,  err)
-		log.Errorf("get tx[%v] receipt failed, err = %v \n", transactionId, err)
+		log.Errorf("GetBlockByNum failed, error = %s\n", err.Error())
 		return nil, err
 	}
-
-	if result.Type != gjson.JSON {
-		errInfo := fmt.Sprintf("get tx[%v] receipt result type failed, result type is %v", transactionId, result.Type)
-		log.Errorf(errInfo)
-		return nil, errors.New(errInfo)
+	block := &EthBlock{
+		BlockHeader:  *NewBlockHeader(respBlock),
+		Transactions: ParseToBlockTransactions(respBlock),
 	}
-
-	err = json.Unmarshal([]byte(result.Raw), &txReceipt)
-	if err != nil {
-		log.Errorf("decode json [%v] failed, err=%v", []byte(result.Raw), err)
-		return nil, err
-	}
-
-	return &txReceipt, nil
-
+	return block, nil
 }
 
-func (this *Client) ethGetBlockSpecByHash(blockHash string, showTransactionSpec bool) (*EthBlock, error) {
-	params := []interface{}{
-		blockHash,
-		showTransactionSpec,
-	}
-	var ethBlock EthBlock
+//func (this *Client) ethGetTxpoolStatus() (uint64, uint64, error) {
+//	result, err := this.Call("txpool_status", 1, nil)
+//	if err != nil {
+//		//errInfo := fmt.Sprintf("get block[%v] failed, err = %v \n", blockNumStr,  err)
+//		//log.Errorf("get block[%v] failed, err = %v \n", err)
+//		return 0, 0, err
+//	}
+//
+//	type TxPoolStatus struct {
+//		Pending string `json:"pending"`
+//		Queued  string `json:"queued"`
+//	}
+//
+//	txStatusResult := TxPoolStatus{}
+//	err = json.Unmarshal([]byte(result.Raw), &txStatusResult)
+//	if err != nil {
+//		log.Errorf("decode from json failed, err=%v", err)
+//		return 0, 0, err
+//	}
+//
+//	pendingNum, err := strconv.ParseUint(removeOxFromHex(txStatusResult.Pending), 16, 64)
+//	if err != nil {
+//		log.Errorf("convert txstatus pending number to uint failed, err=%v", err)
+//		return 0, 0, err
+//	}
+//
+//	queuedNum, err := strconv.ParseUint(removeOxFromHex(txStatusResult.Queued), 16, 64)
+//	if err != nil {
+//		log.Errorf("convert queued number to uint failed, err=%v", err)
+//		return 0, 0, err
+//	}
+//
+//	return pendingNum, queuedNum, nil
+//}
 
-	result, err := this.Call("eth_getBlockByHash", 1, params)
+// 获取地址余额
+func (this *Client) GetAddrBalance(address string) (*big.Int, error) {
+	//if sign != "latest" && sign != "pending" {
+	//	return nil, errors.New("unknown sign was put through.")
+	//}
+	//
+	//params := []interface{}{
+	//	AppendOxToAddress(address),
+	//	sign,
+	//}
+	//result, err := this.Call("eth_getBalance", 1, params)
+	//if err != nil {
+	//	//log.Errorf(fmt.Sprintf("get addr[%v] balance failed, err=%v\n", address, err))
+	//	return big.NewInt(0), err
+	//}
+	//if result.Type != gjson.String {
+	//	errInfo := fmt.Sprintf("get addr[%v] balance result type error, result type is %v\n", address, result.Type)
+	//	log.Errorf(errInfo)
+	//	return big.NewInt(0), errors.New(errInfo)
+	//}
+	//
+	//balance, err := ConvertToBigInt(result.String(), 16)
+	//if err != nil {
+	//	errInfo := fmt.Sprintf("convert addr[%v] balance format to bigint failed, response is %v, and err = %v\n", address, result.String(), err)
+	//	log.Errorf(errInfo)
+	//	return big.NewInt(0), errors.New(errInfo)
+	//}
+	//return balance, nil
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	resp, err := this.GreeterClient.GetBalance(ctx, &message.ReqBalance{Address: address})
 	if err != nil {
-		//errInfo := fmt.Sprintf("get block[%v] failed, err = %v \n", blockNumStr,  err)
-		log.Errorf("get block[%v] failed, err = %v \n", blockHash, err)
-		return nil, err
-	}
-
-	if result.Type != gjson.JSON {
-		errInfo := fmt.Sprintf("get block[%v] result type failed, result type is %v", blockHash, result.Type)
-		log.Errorf(errInfo)
-		return nil, errors.New(errInfo)
-	}
-
-	err = json.Unmarshal([]byte(result.Raw), &ethBlock)
-	if err != nil {
-		log.Errorf("decode json [%v] failed, err=%v", []byte(result.Raw), err)
-		return nil, err
-	}
-
-	err = ethBlock.Init()
-	if err != nil {
-		log.Errorf("init eth block failed, err=%v", err)
-		return nil, err
-	}
-	return &ethBlock, nil
-}
-
-func (this *Client) EthGetTransactionByHash(txid string) (*BlockTransaction, error) {
-	params := []interface{}{
-		AppendOxToAddress(txid),
-	}
-
-	var tx BlockTransaction
-
-	result, err := this.Call("eth_getTransactionByHash", 1, params)
-	if err != nil {
-		//errInfo := fmt.Sprintf("get block[%v] failed, err = %v \n", blockNumStr,  err)
-		log.Errorf("get transaction[%v] failed, err = %v \n", AppendOxToAddress(txid), err)
-		return nil, err
-	}
-
-	if result.Type != gjson.JSON {
-		errInfo := fmt.Sprintf("get transaction[%v] result type failed, result type is %v", AppendOxToAddress(txid), result.Type)
-		log.Errorf(errInfo)
-		return nil, errors.New(errInfo)
-	}
-
-	err = json.Unmarshal([]byte(result.Raw), &tx)
-	if err != nil {
-		log.Errorf("decode json [%v] failed, err=%v", result.Raw, err)
-		return nil, err
-	}
-
-	return &tx, nil
-}
-
-func (this *Client) ethGetBlockSpecByBlockNum2(blockNum string, showTransactionSpec bool) (*EthBlock, error) {
-	params := []interface{}{
-		blockNum,
-		showTransactionSpec,
-	}
-	var ethBlock EthBlock
-
-	result, err := this.Call("eth_getBlockByNumber", 1, params)
-	if err != nil {
-		//errInfo := fmt.Sprintf("get block[%v] failed, err = %v \n", blockNumStr,  err)
-		log.Errorf("get block[%v] failed, err = %v \n", blockNum, err)
-		return nil, err
-	}
-
-	if showTransactionSpec {
-		err = json.Unmarshal([]byte(result.Raw), &ethBlock)
-	} else {
-		err = json.Unmarshal([]byte(result.Raw), &ethBlock.BlockHeader)
-	}
-	if err != nil {
-		log.Errorf("decode json [%v] failed, err=%v", result.Raw, err)
-		return nil, err
-	}
-
-	err = ethBlock.Init()
-	if err != nil {
-		log.Errorf("init eth block failed, err=%v", err)
-		return nil, err
-	}
-	return &ethBlock, nil
-}
-
-func (this *Client) EthGetBlockSpecByBlockNum(blockNum uint64, showTransactionSpec bool) (*EthBlock, error) {
-	blockNumStr := "0x" + strconv.FormatUint(blockNum, 16)
-	return this.ethGetBlockSpecByBlockNum2(blockNumStr, showTransactionSpec)
-}
-
-func (this *Client) ethGetTxpoolStatus() (uint64, uint64, error) {
-	result, err := this.Call("txpool_status", 1, nil)
-	if err != nil {
-		//errInfo := fmt.Sprintf("get block[%v] failed, err = %v \n", blockNumStr,  err)
-		//log.Errorf("get block[%v] failed, err = %v \n", err)
-		return 0, 0, err
-	}
-
-	type TxPoolStatus struct {
-		Pending string `json:"pending"`
-		Queued  string `json:"queued"`
-	}
-
-	txStatusResult := TxPoolStatus{}
-	err = json.Unmarshal([]byte(result.Raw), &txStatusResult)
-	if err != nil {
-		log.Errorf("decode from json failed, err=%v", err)
-		return 0, 0, err
-	}
-
-	pendingNum, err := strconv.ParseUint(removeOxFromHex(txStatusResult.Pending), 16, 64)
-	if err != nil {
-		log.Errorf("convert txstatus pending number to uint failed, err=%v", err)
-		return 0, 0, err
-	}
-
-	queuedNum, err := strconv.ParseUint(removeOxFromHex(txStatusResult.Queued), 16, 64)
-	if err != nil {
-		log.Errorf("convert queued number to uint failed, err=%v", err)
-		return 0, 0, err
-	}
-
-	return pendingNum, queuedNum, nil
-}
-
-type SolidityParam struct {
-	ParamType  string
-	ParamValue interface{}
-}
-
-func makeRepeatString(c string, count uint) string {
-	cs := make([]string, 0)
-	for i := 0; i < int(count); i++ {
-		cs = append(cs, c)
-	}
-	return strings.Join(cs, "")
-}
-
-func makeTransactionData(methodId string, params []SolidityParam) (string, error) {
-
-	data := methodId
-	for i, _ := range params {
-		var param string
-		if params[i].ParamType == SOLIDITY_TYPE_ADDRESS {
-			param = strings.ToLower(params[i].ParamValue.(string))
-			if strings.Index(param, "0x") != -1 {
-				param = tool.Substr(param, 2, len(param))
-			}
-
-			if len(param) != 40 {
-				return "", errors.New("length of address error.")
-			}
-			param = makeRepeatString("0", 24) + param
-		} else if params[i].ParamType == SOLIDITY_TYPE_UINT256 {
-			intParam := params[i].ParamValue.(*big.Int)
-			param = intParam.Text(16)
-			l := len(param)
-			if l > 64 {
-				return "", errors.New("integer overflow.")
-			}
-			param = makeRepeatString("0", uint(64-l)) + param
-			//fmt.Println("makeTransactionData intParam:", intParam.String(), " param:", param)
-		} else {
-			return "", errors.New("not support solidity type")
-		}
-
-		data += param
-	}
-	return data, nil
-}
-
-func (this *Client) ERC20GetAddressBalance2(address string, contractAddr string, sign string) (*big.Int, error) {
-	if sign != "latest" && sign != "pending" {
-		return nil, errors.New("unknown sign was put through.")
-	}
-	contractAddr = "0x" + strings.TrimPrefix(contractAddr, "0x")
-	var funcParams []SolidityParam
-	funcParams = append(funcParams, SolidityParam{
-		ParamType:  SOLIDITY_TYPE_ADDRESS,
-		ParamValue: address,
-	})
-	trans := make(map[string]interface{})
-	data, err := makeTransactionData(ETH_GET_TOKEN_BALANCE_METHOD, funcParams)
-	if err != nil {
-		log.Errorf("make transaction data failed, err = %v", err)
-		return nil, err
-	}
-
-	trans["to"] = contractAddr
-	trans["data"] = data
-	params := []interface{}{
-		trans,
-		"latest",
-	}
-	result, err := this.Call("eth_call", 1, params)
-	if err != nil {
-		log.Errorf(fmt.Sprintf("get addr[%v] erc20 balance failed, err=%v\n", address, err))
+		log.Errorf("get balance failed, error = %s \n", err.Error())
 		return big.NewInt(0), err
 	}
-	if result.Type != gjson.String {
-		errInfo := fmt.Sprintf("get addr[%v] erc20 balance result type error, result type is %v\n", address, result.Type)
-		log.Errorf(errInfo)
-		return big.NewInt(0), errors.New(errInfo)
-	}
-
-	balance, err := ConvertToBigInt(result.String(), 16)
-	if err != nil {
-		errInfo := fmt.Sprintf("convert addr[%v] erc20 balance format to bigint failed, response is %v, and err = %v\n", address, result.String(), err)
-		log.Errorf(errInfo)
-		return big.NewInt(0), errors.New(errInfo)
-	}
-	return balance, nil
-
-}
-
-func (this *Client) ERC20GetAddressBalance(address string, contractAddr string) (*big.Int, error) {
-	return this.ERC20GetAddressBalance2(address, contractAddr, "pending")
-}
-
-func (this *Client) GetAddrBalance2(address string, sign string) (*big.Int, error) {
-	if sign != "latest" && sign != "pending" {
-		return nil, errors.New("unknown sign was put through.")
-	}
-
-	params := []interface{}{
-		AppendOxToAddress(address),
-		sign,
-	}
-	result, err := this.Call("eth_getBalance", 1, params)
-	if err != nil {
-		//log.Errorf(fmt.Sprintf("get addr[%v] balance failed, err=%v\n", address, err))
-		return big.NewInt(0), err
-	}
-	if result.Type != gjson.String {
-		errInfo := fmt.Sprintf("get addr[%v] balance result type error, result type is %v\n", address, result.Type)
-		log.Errorf(errInfo)
-		return big.NewInt(0), errors.New(errInfo)
-	}
-
-	balance, err := ConvertToBigInt(result.String(), 16)
-	if err != nil {
-		errInfo := fmt.Sprintf("convert addr[%v] balance format to bigint failed, response is %v, and err = %v\n", address, result.String(), err)
-		log.Errorf(errInfo)
-		return big.NewInt(0), errors.New(errInfo)
-	}
+	balance, _ := big.NewInt(0).SetString(fmt.Sprintf("%d", resp.Balnce), 10)
 	return balance, nil
 }
 
-func AppendOxToAddress(addr string) string {
-	if strings.Index(addr, "0x") == -1 {
-		return "0x" + addr
-	}
-	return addr
-}
-
-func makeSimpleTransactionPara(fromAddr *Address, toAddr string, amount *big.Int, password string, fee *txFeeInfo) map[string]interface{} {
-	paraMap := make(map[string]interface{})
-
-	//use password to unlock the account
-	paraMap["password"] = password
-	//use the following attr to eth_sendTransaction
-	paraMap["from"] = AppendOxToAddress(fromAddr.Address)
-	paraMap["to"] = AppendOxToAddress(toAddr)
-	paraMap["value"] = "0x" + amount.Text(16)
-	paraMap["gas"] = "0x" + fee.GasLimit.Text(16)
-	paraMap["gasPrice"] = "0x" + fee.GasPrice.Text(16)
-	return paraMap
-}
-
-func makeSimpleTransactiomnPara2(fromAddr string, toAddr string, amount *big.Int, password string) map[string]interface{} {
-	paraMap := make(map[string]interface{})
-	paraMap["password"] = password
-	paraMap["from"] = AppendOxToAddress(fromAddr)
-	paraMap["to"] = AppendOxToAddress(toAddr)
-	paraMap["value"] = "0x" + amount.Text(16)
-	return paraMap
-}
-
-func makeSimpleTransGasEstimatedPara(fromAddr string, toAddr string, amount *big.Int) map[string]interface{} {
-	//paraMap := make(map[string]interface{})
-	//paraMap["from"] = fromAddr
-	//paraMap["to"] = toAddr
-	//paraMap["value"] = "0x" + amount.Text(16)
-	return makeGasEstimatePara(fromAddr, toAddr, amount, "") //araMap
-}
-
-func makeERC20TokenTransData(contractAddr string, toAddr string, amount *big.Int) (string, error) {
-	var funcParams []SolidityParam
-	funcParams = append(funcParams, SolidityParam{
-		ParamType:  SOLIDITY_TYPE_ADDRESS,
-		ParamValue: toAddr,
-	})
-
-	funcParams = append(funcParams, SolidityParam{
-		ParamType:  SOLIDITY_TYPE_UINT256,
-		ParamValue: amount,
-	})
-
-	//fmt.Println("make token transfer data, amount:", amount.String())
-	data, err := makeTransactionData(ETH_TRANSFER_TOKEN_BALANCE_METHOD, funcParams)
-	if err != nil {
-		log.Errorf("make transaction data failed, err = %v", err)
-		return "", err
-	}
-	log.Debugf("data:%v", data)
-	return data, nil
-}
-
-func makeGasEstimatePara(fromAddr string, toAddr string, value *big.Int, data string) map[string]interface{} {
-	paraMap := make(map[string]interface{})
-	paraMap["from"] = AppendOxToAddress(fromAddr)
-	paraMap["to"] = AppendOxToAddress(toAddr)
-	if data != "" {
-		paraMap["data"] = data
-	}
-
-	if value != nil {
-		paraMap["value"] = "0x" + value.Text(16)
-	}
-	return paraMap
-}
-
-func makeERC20TokenTransGasEstimatePara(fromAddr string, contractAddr string, data string) map[string]interface{} {
-
-	//paraMap := make(map[string]interface{})
-
-	//use password to unlock the account
-	//use the following attr to eth_sendTransaction
-	//paraMap["from"] = fromAddr //fromAddr.Address
-	//paraMap["to"] = contractAddr
-	//paraMap["value"] = "0x" + amount.Text(16)
-	//paraMap["gas"] = "0x" + fee.GasLimit.Text(16)
-	//paraMap["gasPrice"] = "0x" + fee.GasPrice.Text(16)
-	//paraMap["data"] = data
-	return makeGasEstimatePara(fromAddr, contractAddr, nil, data)
-}
-
-func (this *Client) ethGetGasEstimated(paraMap map[string]interface{}) (*big.Int, error) {
-	trans := make(map[string]interface{})
-	var temp interface{}
-	var exist bool
-	var fromAddr string
-	var toAddr string
-
-	if temp, exist = paraMap["from"]; !exist {
-		log.Errorf("from not found")
-		return big.NewInt(0), errors.New("from not found")
-	} else {
-		fromAddr = temp.(string)
-		trans["from"] = fromAddr
-	}
-
-	if temp, exist = paraMap["to"]; !exist {
-		log.Errorf("to not found")
-		return big.NewInt(0), errors.New("to not found")
-	} else {
-		toAddr = temp.(string)
-		trans["to"] = toAddr
-	}
-
-	if temp, exist = paraMap["value"]; exist {
-		amount := temp.(string)
-		trans["value"] = amount
-	}
-
-	if temp, exist = paraMap["data"]; exist {
-		data := temp.(string)
-		trans["data"] = data
-	}
-
-	params := []interface{}{
-		trans,
-	}
-
-	result, err := this.Call("eth_estimateGas", 1, params)
-	if err != nil {
-		log.Errorf(fmt.Sprintf("get estimated gas limit from [%v] to [%v] faield, err = %v \n", fromAddr, toAddr, err))
-		return big.NewInt(0), err
-	}
-
-	if result.Type != gjson.String {
-		errInfo := fmt.Sprintf("get estimated gas from [%v] to [%v] result type error, result type is %v\n", fromAddr, toAddr, result.Type)
-		log.Errorf(errInfo)
-		return big.NewInt(0), errors.New(errInfo)
-	}
-
-	gasLimit, err := ConvertToBigInt(result.String(), 16)
-	if err != nil {
-		errInfo := fmt.Sprintf("convert estimated gas[%v] format to bigint failed, err = %v\n", result.String(), err)
-		log.Errorf(errInfo)
-		return big.NewInt(0), errors.New(errInfo)
-	}
-	return gasLimit, nil
-}
-
-func makeERC20TokenTransactionPara(fromAddr *Address, contractAddr string, data string,
-	password string, fee *txFeeInfo) map[string]interface{} {
-
-	paraMap := make(map[string]interface{})
-
-	//use password to unlock the account
-	paraMap["password"] = password
-	//use the following attr to eth_sendTransaction
-	paraMap["from"] = AppendOxToAddress(fromAddr.Address)
-	paraMap["to"] = AppendOxToAddress(contractAddr)
-	//paraMap["value"] = "0x" + amount.Text(16)
-	paraMap["gas"] = "0x" + fee.GasLimit.Text(16)
-	paraMap["gasPrice"] = "0x" + fee.GasPrice.Text(16)
-	paraMap["data"] = data
-	return paraMap
-}
-
+// 发送需要线上签名的交易
 func (this *WalletManager) SendTransactionToAddr(param map[string]interface{}) (string, error) {
 	//(addr *Address, to string, amount *big.Int, password string, fee *txFeeInfo) (string, error) {
 	var exist bool
@@ -696,67 +291,92 @@ func (this *WalletManager) SendTransactionToAddr(param map[string]interface{}) (
 		log.Errorf("from not found.")
 		return "", errors.New("from not found.")
 	}
-
+	
 	fromAddr := temp.(string)
-
+	
 	if temp, exist = param["password"]; !exist {
 		log.Errorf("password not found.")
 		return "", errors.New("password not found.")
 	}
-
+	
 	password := temp.(string)
-
+	
 	err := this.WalletClient.UnlockAddr(fromAddr, password, 300)
 	if err != nil {
 		log.Errorf("unlock addr failed, err = %v", err)
 		return "", err
 	}
-
-	txId, err := this.WalletClient.ethSendTransaction(param)
+	
+	txId, err := this.WalletClient.ktoSendTransaction(param)
 	if err != nil {
-		log.Errorf("ethSendTransaction failed, err = %v", err)
+		log.Errorf("ktoSendTransaction failed, err = %v", err)
 		return "", err
 	}
-
+	
 	err = this.WalletClient.LockAddr(fromAddr)
 	if err != nil {
 		log.Errorf("lock addr failed, err = %v", err)
 		return txId, err
 	}
-
+	
 	return txId, nil
 }
 
-func (this *WalletManager) EthSendRawTransaction(signedTx string) (string, error) {
-	return this.WalletClient.ethSendRawTransaction(signedTx)
+// 发送离线签名的交易
+func (this *WalletManager) KtoSendRawTransaction(from, to string, amount, nonce uint64, time int64, hash, signature []byte) (string, error) {
+	return this.WalletClient.ktoSendRawTransaction(from, to, amount, nonce, time, hash, signature)
 }
 
-func (this *Client) ethSendRawTransaction(signedTx string) (string, error) {
-	params := []interface{}{
-		signedTx,
+// 发送离线签名的交易
+func (this *Client) ktoSendRawTransaction(from, to string, amount, nonce uint64, time int64, hash, signature []byte) (string, error) {
+	//params := []interface{}{
+	//	signedTx,
+	//}
+	//
+	//result, err := this.Call("eth_sendRawTransaction", 1, params)
+	//if err != nil {
+	//	log.Errorf(fmt.Sprintf("start raw transaction faield, err = %v \n", err))
+	//	return "", err
+	//}
+	//
+	//if result.Type != gjson.String {
+	//	log.Errorf("eth_sendRawTransaction result type error")
+	//	return "", errors.New("eth_sendRawTransaction result type error")
+	//}
+	//return result.String(), nil
+	
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	in := &message.ReqSignedTransaction{
+		From:      from,
+		To:        to,
+		Amount:    amount,
+		Nonce:     nonce,
+		Time:      time,
+		Hash:      hash,
+		Signature: signature,
 	}
-
-	result, err := this.Call("eth_sendRawTransaction", 1, params)
+	respTx, err := this.GreeterClient.SendSignedTransaction(ctx, in)
 	if err != nil {
-		log.Errorf(fmt.Sprintf("start raw transaction faield, err = %v \n", err))
+		log.Errorf("SendSignedTransaction failed, error = %s \n", err.Error())
 		return "", err
 	}
-
-	if result.Type != gjson.String {
-		log.Errorf("eth_sendRawTransaction result type error")
-		return "", errors.New("eth_sendRawTransaction result type error")
-	}
-	return result.String(), nil
+	return respTx.Hash, nil
 }
 
-func (this *Client) ethSendTransaction(paraMap map[string]interface{}) (string, error) {
-	//(fromAddr string, toAddr string, amount *big.Int, fee *txFeeInfo) (string, error) {
+// 发送需要线上签名的交易
+func (this *Client) ktoSendTransaction(paraMap map[string]interface{}) (string, error) {
 	trans := make(map[string]interface{})
 	var temp interface{}
 	var exist bool
 	var fromAddr string
 	var toAddr string
-
+	var(
+		err error
+		amountInt *big.Int
+		priv string
+	)
+	
 	if temp, exist = paraMap["from"]; !exist {
 		log.Errorf("from not found")
 		return "", errors.New("from not found")
@@ -764,7 +384,7 @@ func (this *Client) ethSendTransaction(paraMap map[string]interface{}) (string, 
 		fromAddr = temp.(string)
 		trans["from"] = fromAddr
 	}
-
+	
 	if temp, exist = paraMap["to"]; !exist {
 		log.Errorf("to not found")
 		return "", errors.New("to not found")
@@ -772,144 +392,52 @@ func (this *Client) ethSendTransaction(paraMap map[string]interface{}) (string, 
 		toAddr = temp.(string)
 		trans["to"] = toAddr
 	}
-
+	
 	if temp, exist = paraMap["value"]; exist {
 		amount := temp.(string)
+		amountInt, err = ConvertKTOStringToK(amount)
+		if err != nil {
+			log.Errorf("convert amount failed, error %s", err.Error())
+		}
 		trans["value"] = amount
 	}
-
-	if temp, exist = paraMap["gas"]; exist {
-		gasLimit := temp.(string)
-		trans["gas"] = gasLimit
+	
+	if temp, exist = paraMap["priv"]; exist {
+		priv = temp.(string)
+		trans["priv"] = priv
 	}
-
-	if temp, exist = paraMap["gasPrice"]; exist {
-		gasPrice := temp.(string)
-		trans["gasPrice"] = gasPrice
-	}
-
-	if temp, exist = paraMap["data"]; exist {
-		data := temp.(string)
-		trans["data"] = data
-	}
-
-	params := []interface{}{
-		trans,
-	}
-
-	result, err := this.Call("eth_sendTransaction", 1, params)
+	
+	nonce, err := this.ktoGetAddressNonceAt(fromAddr)
 	if err != nil {
-		log.Errorf(fmt.Sprintf("start transaction from [%v] to [%v] faield, err = %v \n", fromAddr, toAddr, err))
 		return "", err
 	}
-
-	if result.Type != gjson.String {
-		log.Errorf("eth_sendTransaction result type error")
-		return "", errors.New("eth_sendTransaction result type error")
+	
+	in := &message.ReqTransaction{
+		From:                 fromAddr,
+		To:                   toAddr,
+		Amount:               amountInt.Uint64(),
+		Nonce:                nonce,
+		Priv:                 priv,
 	}
-	return result.String(), nil
+	
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	respTx, err := this.GreeterClient.SendTransaction(ctx, in)
+	if err != nil {
+		log.Errorf("SendTransaction failed, error %s", err.Error())
+		return "", nil
+	}
+	return respTx.Hash, nil
 }
 
-func (this *Client) ethGetAccounts() ([]string, error) {
-	param := make([]interface{}, 0)
-	accounts := make([]string, 0)
-	result, err := this.Call("eth_accounts", 1, param)
+// 获取链上最大区块号
+func (this *Client) GetMaxBlockNumber() (uint64, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	resp, err := this.GreeterClient.GetMaxBlockNumber(ctx, &message.ReqMaxBlockNumber{})
 	if err != nil {
-		log.Errorf("get eth accounts faield, err = %v \n", err)
-		return nil, err
-	}
-
-	log.Debugf("result type of eth_accounts is %v", result.Type)
-
-	accountList := result.Array()
-	for i, _ := range accountList {
-		acc := accountList[i].String()
-		accounts = append(accounts, acc)
-	}
-	return accounts, nil
-}
-
-func (this *Client) EthGetBlockNumber() (uint64, error) {
-	param := make([]interface{}, 0)
-	result, err := this.Call("eth_blockNumber", 1, param)
-	if err != nil {
-		log.Errorf("get block number faield, err = %v \n", err)
+		log.Errorf("get block number failed, err = %s \n", err.Error())
 		return 0, err
 	}
-
-	if result.Type != gjson.String {
-		log.Errorf("result of block number type error")
-		return 0, errors.New("result of block number type error")
-	}
-
-	blockNum, err := ConvertToUint64(result.String(), 16)
-	if err != nil {
-		log.Errorf("parse block number to big.Int failed, err=%v", err)
-		return 0, err
-	}
-
-	return blockNum, nil
-}
-
-func (c *Client) Call(method string, id int64, params []interface{}) (*gjson.Result, error) {
-	authHeader := req.Header{
-		"Accept":       "application/json",
-		"Content-Type": "application/json",
-	}
-	body := make(map[string]interface{}, 0)
-	body["jsonrpc"] = "2.0"
-	body["id"] = id
-	body["method"] = method
-	body["params"] = params
-
-	if c.Debug {
-		log.Debug("Start Request API...")
-	}
-
-	r, err := req.Post(c.BaseURL, req.BodyJSON(&body), authHeader)
-
-	if c.Debug {
-		log.Debug("Request API Completed")
-	}
-
-	if c.Debug {
-		log.Debugf("%+v\n", r)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	resp := gjson.ParseBytes(r.Bytes())
-	err = isError(&resp)
-	if err != nil {
-		return nil, err
-	}
-
-	result := resp.Get("result")
-
-	return &result, nil
-}
-
-//isError 是否报错
-func isError(result *gjson.Result) error {
-	var (
-		err error
-	)
-
-	if !result.Get("error").IsObject() {
-
-		if !result.Get("result").Exists() {
-			return errors.New("Response is empty! ")
-		}
-
-		return nil
-	}
-
-	errInfo := fmt.Sprintf("[%d]%s",
-		result.Get("error.code").Int(),
-		result.Get("error.message").String())
-	err = errors.New(errInfo)
-
-	return err
+	return resp.MaxNumber, nil
 }
