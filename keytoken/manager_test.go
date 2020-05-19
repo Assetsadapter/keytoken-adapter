@@ -49,19 +49,6 @@ func testNewWalletManager() *WalletManager {
 	return wm
 }
 
-
-func TestWalletManager_GetErc20TokenEvent(t *testing.T) {
-	wm := testNewWalletManager()
-	txid := "0xa10ecccac1e3ee911fec660d5d789885e472262eadf13c372d6a2b30aca9454a"
-	txevent, err := wm.GetErc20TokenEvent(txid)
-	if err != nil {
-		t.Errorf("GetErc20TokenEvent error: %v", err)
-		return
-	}
-	log.Infof("txevent: %+v", txevent)
-}
-
-
 func TestFixGasLimit(t *testing.T) {
 	fixGasLimitStr := "50000"
 	fixGasLimit := new(big.Int)
@@ -71,11 +58,11 @@ func TestFixGasLimit(t *testing.T) {
 
 func TestWalletManager_GetAddrBalance(t *testing.T) {
 	wm := testNewWalletManager()
-	balance, err := wm.WalletClient.GetAddrBalance2("", "pending")
+	balance, err := wm.WalletClient.GetAddrBalance("")
 	if err != nil {
 		t.Errorf("GetAddrBalance2 error: %v", err)
 		return
 	}
-	ethB, err := ConverKStringToKtoDecimal(balance.String())
+	ethB, _ := ConverKStringToKtoDecimal(balance.String())
 	log.Infof("ethB: %v", ethB)
 }

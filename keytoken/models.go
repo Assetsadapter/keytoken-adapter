@@ -27,7 +27,6 @@ import (
 	"time"
 	
 	"github.com/asdine/storm"
-	"github.com/blocktree/go-owcrypt"
 	"github.com/blocktree/openwallet/common/file"
 	"github.com/blocktree/openwallet/hdkeystore"
 	"github.com/blocktree/openwallet/log"
@@ -151,7 +150,7 @@ type Address struct {
 }
 
 func (this *Address) CalcPrivKey(masterKey *hdkeystore.HDKey) ([]byte, error) {
-	childKey, _ := masterKey.DerivedKeyWithPath(this.HDPath, owcrypt.ECC_CURVE_SECP256K1)
+	childKey, _ := masterKey.DerivedKeyWithPath(this.HDPath, CurveType)
 	keyBytes, err := childKey.GetPrivateKeyBytes()
 	if err != nil {
 		log.Error("get private key bytes, err=", err)
@@ -202,7 +201,7 @@ func ParseToBlockTransactions(block *message.RespBlock) []BlockTransaction {
 			Timestamp:        time.Unix(tx.Time, 0).Format(TIME_POSTFIX),
 			BlockHeight:      block.Height,
 			FilterFunc:       nil,
-			Status:           0,
+			Status:           1,
 		})
 	}
 	return result
@@ -228,7 +227,7 @@ func ParseToBlockTransaction(tx *message.Tx) *BlockTransaction {
 }
 
 func (this *BlockTransaction) GetAmountEthString() (string, error) {
-	amount, err := ConvertToBigInt(this.Value, 16)
+	amount, err := ConvertToBigInt(this.Value, 10)
 	if err != nil {
 		log.Errorf("convert amount to big.int failed, err= %v", err)
 		return "0", err

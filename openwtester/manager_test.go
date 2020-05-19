@@ -74,7 +74,7 @@ func TestWalletManager_CreateAssetsAccount(t *testing.T) {
 
 	tm := testInitWalletManager()
 
-	walletID := "WEfRog5M2cNxEE1jj1UiNvYHggqsc69aFD"
+	walletID := "WH5qzrxVpyitQWBFXyEcoQbitnyb7q76pa"
 	account := &openwallet.AssetsAccount{Alias: "feesSupport", WalletID: walletID, Required: 1, Symbol: "KTO", IsTrust: true}
 	account, address, err := tm.CreateAssetsAccount(testApp, walletID, "12345678", account, nil)
 	if err != nil {
@@ -92,7 +92,7 @@ func TestWalletManager_GetAssetsAccountList(t *testing.T) {
 
 	tm := testInitWalletManager()
 
-	walletID := "WEfRog5M2cNxEE1jj1UiNvYHggqsc69aFD"
+	walletID := "W1N18c2ZqCVDPHCXU82qTdCznLGuWtmJKq"
 	list, err := tm.GetAssetsAccountList(testApp, walletID, 0, 10000000)
 	if err != nil {
 		log.Error("unexpected error:", err)
@@ -111,17 +111,22 @@ func TestWalletManager_CreateAddress(t *testing.T) {
 
 	tm := testInitWalletManager()
 
-	walletID := "WEfRog5M2cNxEE1jj1UiNvYHggqsc69aFD"
-	accountID := "5j7CuL5NYEig8633bMjPiKsAco4Lsfveh99MDadesSJG"
-	address, err := tm.CreateAddress(testApp, walletID, accountID, 5)
+	walletID := "WH5qzrxVpyitQWBFXyEcoQbitnyb7q76pa"
+	accountID := "AGLURjwMbPMT7QdaQvQWt66BpzZJnGsRMoz68jjoRt3u"
+	address, err := tm.CreateAddress(testApp, walletID, accountID, 100)
 	if err != nil {
 		log.Error(err)
 		return
 	}
 
+	filterAddr := make(map[string]openwallet.Address)
+	
 	for _, addr := range address {
+		filterAddr[addr.Address] = *addr
 		log.Info("address:", addr)
 	}
+	
+	log.Info(fmt.Sprintf("Addresss count : %d, fitelAddrLen : %d", len(address), len(filterAddr)))
 
 	tm.CloseDB(testApp)
 }

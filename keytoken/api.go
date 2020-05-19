@@ -245,32 +245,6 @@ func (this *Client) KtoGetBlockByNum(blockNum uint64) (*EthBlock, error) {
 
 // 获取地址余额
 func (this *Client) GetAddrBalance(address string) (*big.Int, error) {
-	//if sign != "latest" && sign != "pending" {
-	//	return nil, errors.New("unknown sign was put through.")
-	//}
-	//
-	//params := []interface{}{
-	//	AppendOxToAddress(address),
-	//	sign,
-	//}
-	//result, err := this.Call("eth_getBalance", 1, params)
-	//if err != nil {
-	//	//log.Errorf(fmt.Sprintf("get addr[%v] balance failed, err=%v\n", address, err))
-	//	return big.NewInt(0), err
-	//}
-	//if result.Type != gjson.String {
-	//	errInfo := fmt.Sprintf("get addr[%v] balance result type error, result type is %v\n", address, result.Type)
-	//	log.Errorf(errInfo)
-	//	return big.NewInt(0), errors.New(errInfo)
-	//}
-	//
-	//balance, err := ConvertToBigInt(result.String(), 16)
-	//if err != nil {
-	//	errInfo := fmt.Sprintf("convert addr[%v] balance format to bigint failed, response is %v, and err = %v\n", address, result.String(), err)
-	//	log.Errorf(errInfo)
-	//	return big.NewInt(0), errors.New(errInfo)
-	//}
-	//return balance, nil
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	resp, err := this.GreeterClient.GetBalance(ctx, &message.ReqBalance{Address: address})
@@ -285,27 +259,27 @@ func (this *Client) GetAddrBalance(address string) (*big.Int, error) {
 // 发送需要线上签名的交易
 func (this *WalletManager) SendTransactionToAddr(param map[string]interface{}) (string, error) {
 	//(addr *Address, to string, amount *big.Int, password string, fee *txFeeInfo) (string, error) {
-	var exist bool
-	var temp interface{}
-	if temp, exist = param["from"]; !exist {
-		log.Errorf("from not found.")
-		return "", errors.New("from not found.")
-	}
+	//var exist bool
+	//var temp interface{}
+	//if temp, exist = param["from"]; !exist {
+	//	log.Errorf("from not found.")
+	//	return "", errors.New("from not found.")
+	//}
 	
-	fromAddr := temp.(string)
+	//fromAddr := temp.(string)
 	
-	if temp, exist = param["password"]; !exist {
-		log.Errorf("password not found.")
-		return "", errors.New("password not found.")
-	}
+	//if temp, exist = param["password"]; !exist {
+	//	log.Errorf("password not found.")
+	//	return "", errors.New("password not found.")
+	//}
 	
-	password := temp.(string)
+	//password := temp.(string)
 	
-	err := this.WalletClient.UnlockAddr(fromAddr, password, 300)
-	if err != nil {
-		log.Errorf("unlock addr failed, err = %v", err)
-		return "", err
-	}
+	//err := this.WalletClient.UnlockAddr(fromAddr, password, 300)
+	//if err != nil {
+	//	log.Errorf("unlock addr failed, err = %v", err)
+	//	return "", err
+	//}
 	
 	txId, err := this.WalletClient.ktoSendTransaction(param)
 	if err != nil {
@@ -313,11 +287,11 @@ func (this *WalletManager) SendTransactionToAddr(param map[string]interface{}) (
 		return "", err
 	}
 	
-	err = this.WalletClient.LockAddr(fromAddr)
-	if err != nil {
-		log.Errorf("lock addr failed, err = %v", err)
-		return txId, err
-	}
+	//err = this.WalletClient.LockAddr(fromAddr)
+	//if err != nil {
+	//	log.Errorf("lock addr failed, err = %v", err)
+	//	return txId, err
+	//}
 	
 	return txId, nil
 }
@@ -329,21 +303,6 @@ func (this *WalletManager) KtoSendRawTransaction(from, to string, amount, nonce 
 
 // 发送离线签名的交易
 func (this *Client) ktoSendRawTransaction(from, to string, amount, nonce uint64, time int64, hash, signature []byte) (string, error) {
-	//params := []interface{}{
-	//	signedTx,
-	//}
-	//
-	//result, err := this.Call("eth_sendRawTransaction", 1, params)
-	//if err != nil {
-	//	log.Errorf(fmt.Sprintf("start raw transaction faield, err = %v \n", err))
-	//	return "", err
-	//}
-	//
-	//if result.Type != gjson.String {
-	//	log.Errorf("eth_sendRawTransaction result type error")
-	//	return "", errors.New("eth_sendRawTransaction result type error")
-	//}
-	//return result.String(), nil
 	
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

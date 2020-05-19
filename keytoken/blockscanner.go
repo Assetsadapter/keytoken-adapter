@@ -23,15 +23,15 @@ import (
 	"github.com/blocktree/openwallet/common"
 	"math/big"
 	"time"
-
+	
 	"github.com/asdine/storm"
 	"github.com/blocktree/openwallet/openwallet"
 
 	//	"fmt"
 	"errors"
-
+	
 	//	"golang.org/x/text/currency"
-
+	
 	"fmt"
 )
 
@@ -69,7 +69,7 @@ type SaveResult struct {
 }
 
 //NewBTCBlockScanner 创建区块链扫描器
-func NewETHBlockScanner(wm *WalletManager) *KTOBLockScanner {
+func NewKTOBlockScanner(wm *WalletManager) *KTOBLockScanner {
 	bs := KTOBLockScanner{
 		BlockScannerBase: openwallet.NewBlockScannerBase(),
 	}
@@ -921,7 +921,7 @@ func (this *KTOBLockScanner) TransactionScanning(tx *BlockTransaction) (*Extract
 		}, nil
 	}
 
-	blockHeight, err := ConvertToUint64(tx.BlockNumber, 16)
+	blockHeight, err := ConvertToUint64(tx.BlockNumber, 10)
 	if err != nil {
 		this.wm.Log.Errorf("convert block number from string to uint64 failed, err=%v", err)
 		return nil, err

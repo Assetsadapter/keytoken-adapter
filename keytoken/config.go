@@ -246,12 +246,13 @@ func (this *WalletConfig) LoadConfig(configFilePath string, configFileName strin
 	}
 	this.LocalNonce = localnonce //c.Bool("LocalNonce")
 	//区块链ID
-	chainId, err := c.Int64("ChainID")
-	if err != nil {
-		log.Error("ChainID error, err=", err)
-		return nil, err
-	}
-	this.ChainID = uint64(chainId) //c.Int64("ChainID") //12
+	//chainId, err := c.Int64("ChainID")
+	//if err != nil {
+	//	log.Error("ChainID error, err=", err)
+	//	return nil, err
+	//}
+	//this.ChainID = uint64(chainId) //c.Int64("ChainID") //12
+	this.ChainID = uint64(0) //c.Int64("ChainID") //12
 	return this, nil
 }
 

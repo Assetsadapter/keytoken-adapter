@@ -21,7 +21,7 @@ import (
 )
 
 func TestAddressDecoder_PublicKeyToAddress(t *testing.T) {
-	pub, _ := hex.DecodeString("032144da84e7c0037014be1332617ceec15d3561dc209a1d984bf74677a41a63d0")
+	pub, _ := hex.DecodeString("0e98bd751a030dd9355f8cee728e6cdde65536ab83784683d8299606bbdfd09b")
 
 	decoder := AddressDecoder{}
 

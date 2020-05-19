@@ -45,7 +45,7 @@ const (
 
 // 1KTO = 100000000000
 const (
-	Decimals = 12
+	Decimals = 11
 )
 
 // 将 KTO 转换为最小单位

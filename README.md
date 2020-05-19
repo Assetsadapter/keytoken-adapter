@@ -1,6 +1,6 @@
 # ethereum-adapter
 
-本项目适配了openwallet.AssetsAdapter接口，给应用提供了底层的区块链协议支持。
+本项目适配了openwallet.Assetsadapter接口，给应用提供了底层的区块链协议支持。
 
 ## 项目依赖库
 
