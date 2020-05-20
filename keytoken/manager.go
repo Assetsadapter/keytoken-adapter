@@ -20,8 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Assetsadapter/keytoken-adapter/message"
-	"google.golang.org/grpc"
 	"io/ioutil"
 	"strconv"
 	"sync"
@@ -115,13 +113,6 @@ func NewWalletManager() *WalletManager {
 	//wm.StorageOld = keystore.NewHDKeystore(wm.Config.KeyDir, keystore.StandardScryptN, keystore.StandardScryptP)
 	//storage := hdkeystore.NewHDKeystore(wm.Config.KeyDir, hdkeystore.StandardScryptN, hdkeystore.StandardScryptP)
 	//wm.Storage = storage
-	clientConn, err := grpc.Dial(wm.Config.ServerRpcUrl, grpc.WithInsecure())
-	if err != nil {
-		log.Errorf("dial remote rpc failed, error = %s", err.Error())
-		panic(fmt.Sprintf("dial remote rpc failed, error = %s", err.Error()))
-	}
-	client := &Client{Debug: false, GreeterClient: message.NewGreeterClient(clientConn)}
-	wm.WalletClient = client
 	
 	//wm.WalletInSumOld = make(map[string]*Wallet)
 	wm.Log = log.NewOWLogger(wm.Symbol())

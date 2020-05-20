@@ -36,7 +36,7 @@ const (
 )
 
 const (
-	Symbol       = "KTO"
+	Symbol       = "NKTO"
 	MasterKey    = "KeyToken seed"
 	TIME_POSTFIX = "20060102150405"
 	CurveType    = owcrypt.ECC_CURVE_ED25519
@@ -149,12 +149,12 @@ func (this *WalletManager) LoadAssetsConfig(c config.Configer) error {
 	this.Config.ServerRpcUrl = c.String("ServerRpcUrl") //"http://127.0.0.1:8545"
 
 	//区块链ID
-	chainId, err := c.Int64("ChainID")
-	if err != nil {
-		log.Error("ChainID error, err=", err)
-		return err
-	}
-	this.Config.ChainID = uint64(chainId) //c.Int64("ChainID") //12
+	//chainId, err := c.Int64("ChainID")
+	//if err != nil {
+	//	log.Error("ChainID error, err=", err)
+	//	return err
+	//}
+	//this.Config.ChainID = uint64(chainId) //c.Int64("ChainID") //12
 
 	// 初始化远程 grpc 连接
 	connClient, err := grpc.Dial(this.Config.ServerRpcUrl, grpc.WithInsecure())
