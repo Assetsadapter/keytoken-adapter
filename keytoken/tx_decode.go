@@ -20,7 +20,9 @@ import (
     "errors"
     "fmt"
     "github.com/Assetsadapter/keytoken-adapter/keytoken_txsigner"
+    "github.com/blocktree/go-owcrypt"
     "github.com/shopspring/decimal"
+    "strconv"
     
     "github.com/tidwall/gjson"
     
@@ -31,9 +33,6 @@ import (
     "time"
     
     "github.com/blocktree/openwallet/openwallet"
-    ethcommon "github.com/ethereum/go-ethereum/common"
-    "github.com/ethereum/go-ethereum/core/types"
-    "github.com/ethereum/go-ethereum/rlp"
 )
 
 type EthTxExtPara struct {
@@ -397,17 +396,14 @@ func (this *KtoTransactionDecoder) SignRawTransaction(wrapper openwallet.WalletD
     if err != nil {
         return err
     }
-    tx.Sgin(keyBytes)
-    //sig, err := ethereum_txsigner.Default.SignTransactionHash(message, keyBytes, owcrypt.ECC_CURVE_SECP256K1)
-    //if err != nil {
-    //    //errdesc := fmt.Sprintln("signature error, ret:", "0x"+strconv.FormatUint(uint64(ret), 16))
-    //    //this.wm.Log.Error(errdesc)
-    //    return err
-    //}
+    sign, e := owcrypt.Signature(keyBytes, nil, 0, tx.Hash, 32, this.wm.CurveType())
+    if e != owcrypt.SUCCESS {
+        return errors.New(fmt.Sprintf("signature failed!"))
+    }
+    tx.Signature = sign
     
     signnode.Signature = hex.EncodeToString(tx.Signature)
     
-    //this.wm.Log.Debug("** pri:", hex.EncodeToString(keyBytes))
     this.wm.Log.Debug("** message:", signnode.Message)
     this.wm.Log.Debug("** Signature:", signnode.Signature)
     
@@ -436,47 +432,35 @@ func (this *KtoTransactionDecoder) SubmitSimpleRawTransaction(wrapper openwallet
     
     this.wm.Log.Debug("rawTx.ExtParam:", rawTx.ExtParam)
     
-    signer := types.NewEIP155Signer(big.NewInt(int64(this.wm.GetConfig().ChainID)))
-    
     txStatis, _, err := this.GetTransactionCount2(from)
-    if err != nil {
-        this.wm.Log.Std.Error("get transaction count2 failed, err=%v", err)
-        return nil, openwallet.Errorf(openwallet.ErrSubmitRawTransactionFailed, "get transaction count2 faile")
-    }
-    
-    rawHex, err := hex.DecodeString(rawTx.RawHex)
-    if err != nil {
-        this.wm.Log.Error("rawTx.RawHex decode failed, err:", err)
-        return nil, err
-    }
-    
     err = func() error {
         txStatis.AddressLocker.Lock()
         defer txStatis.AddressLocker.Unlock()
-        
-        tx := &types.Transaction{}
-        err = rlp.DecodeBytes(rawHex, tx)
+        signBytes, err := hex.DecodeString(sig)
         if err != nil {
-            this.wm.Log.Error("transaction RLP decode failed, err:", err)
+            this.wm.Log.Std.Error("signal decode to byte error = %s", err.Error())
             return err
         }
         
-        if tx.Nonce() != *txStatis.TransactionCount {
+        var tx keytoken_txsigner.Transaction
+        err = json.Unmarshal([]byte(rawTx.Signatures[rawTx.Account.AccountID][0].Message), &tx)
+        if err != nil {
+            this.wm.Log.Std.Error("unmarshal tx message failed, error = %s", err.Error())
+            return err
+        }
+        // 检查交易的nonce值与本地存储的nonce值是否一致
+        if tx.Nonce != *txStatis.TransactionCount {
             this.wm.Log.Std.Error("nonce out of dated, please try to start ur tx once again. ")
             return openwallet.Errorf(openwallet.ErrNonceInvaild, "nonce out of dated, please try to start ur tx once again. ")
         }
-        
-        tx, err = tx.WithSignature(signer, ethcommon.FromHex(sig))
-        if err != nil {
-            this.wm.Log.Std.Error("tx with signature failed, err=%v ", err)
-            return errors.New("tx with signature failed. ")
-        }
-        
-        txstr, _ := json.MarshalIndent(tx, "", " ")
-        this.wm.Log.Debug("**after signed txStr:", string(txstr))
-        
-        // TODO : 发送签名交易
-        txid, err := this.wm.WalletClient.ktoSendRawTransaction("", "", 0, 0, 0, nil, nil)
+        txid, err := this.wm.WalletClient.ktoSendRawTransaction(
+            string(tx.From.AddressToByte()),
+            string(tx.To.AddressToByte()),
+            tx.Amount,
+            tx.Nonce,
+            tx.Time,
+            tx.Hash,
+            signBytes)
         if err != nil {
             this.wm.Log.Std.Error("sent raw tx faild, err=%v", err)
             return openwallet.Errorf(openwallet.ErrSubmitRawTransactionFailed, "sent raw tx faild. unexpected error: %v", err)
@@ -484,6 +468,8 @@ func (this *KtoTransactionDecoder) SubmitSimpleRawTransaction(wrapper openwallet
         
         rawTx.TxID = txid
         rawTx.IsSubmit = true
+        
+        // nonce值+1
         txStatis.UpdateTime()
         (*txStatis.TransactionCount)++
         
@@ -548,7 +534,6 @@ func (this *KtoTransactionDecoder) VerifyRawTransaction(wrapper openwallet.Walle
     }
     
     if len(accountSig) == 0 {
-        //this.wm.Log.Std.Error("len of signatures error. ")
         return openwallet.Errorf(openwallet.ErrVerifyRawTransactionFailed, "transaction signature is empty")
     }
     
@@ -566,22 +551,24 @@ func (this *KtoTransactionDecoder) VerifyRawTransaction(wrapper openwallet.Walle
         return err
     }
     
-    if !tx.Verify() {
-        return errors.New(fmt.Sprintf("verify error, ret:%s", msg))
+    signature, err := hex.DecodeString(accountSig[0].Signature)
+    if err != nil {
+        return err
     }
+    pubkeyByte, err := hex.DecodeString(pubkey)
+    if err != nil {
+        return err
+    }
+    publickKey := owcrypt.PointDecompress(pubkeyByte, this.wm.CurveType())
+    publickKey = publickKey[1:len(publickKey)]
+    ret := owcrypt.Verify(tx.From.AddrToPub(), nil, 0, tx.Hash, 32, signature[:], this.wm.CurveType())
+    if ret != owcrypt.SUCCESS {
+        errinfo := fmt.Sprintf("verify error, ret:%v\n", "0x"+strconv.FormatUint(uint64(ret), 16))
+        fmt.Println(errinfo)
+        return errors.New(errinfo)
+    }
+    
     return nil
-    //signature := ethcommon.FromHex(sig)
-    //publickKey := owcrypt.PointDecompress(ethcommon.FromHex(pubkey), owcrypt.ECC_CURVE_SECP256K1)
-    //publickKey = publickKey[1:len(publickKey)]
-    //ret := owcrypt.Verify(publickKey, nil, 0, ethcommon.FromHex(msg), 32, signature[0:len(signature)-1],
-    //    owcrypt.ECC_CURVE_SECP256K1|owcrypt.HASH_OUTSIDE_FLAG)
-    //if ret != owcrypt.SUCCESS {
-    //    errinfo := fmt.Sprintf("verify error, ret:%v\n", "0x"+strconv.FormatUint(uint64(ret), 16))
-    //    fmt.Println(errinfo)
-    //    return errors.New(errinfo)
-    //}
-    //
-    //return nil
 }
 
 //CreateSummaryRawTransaction 创建汇总交易，返回原始交易单数组

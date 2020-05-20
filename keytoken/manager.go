@@ -679,19 +679,6 @@ func verifyTransaction(nonce uint64, to string, amount *big.Int, gasLimit uint64
 //}
 
 func (this *WalletManager) GetNonceForAddress2(address string) (uint64, error) {
-	//txpool, err := this.WalletClient.EthGetTxPoolContent()
-	//if err != nil {
-	//	this.Log.Errorf("EthGetTxPoolContent failed, err = %v", err)
-	//	return 0, err
-	//}
-	//
-	//_, max, count, err := txpool.GetSequentTxNonce(address)
-	//if err != nil {
-	//	log.Error("get txpool sequent tx nonce failed, err=%v", err)
-	//	return 0, err
-	//}
-	//log.Debugf("sequent max nonce:%v", max)
-	//log.Debugf("sequent nonce count:%v", count)
 	txCount, err := this.WalletClient.ktoGetAddressNonceAt(address)
 	if err != nil {
 		log.Error("ktoGetAddressNonceAt failed, err=", err)
@@ -699,10 +686,6 @@ func (this *WalletManager) GetNonceForAddress2(address string) (uint64, error) {
 	}
 	log.Debugf("txCount:%v", txCount)
 	return txCount, nil
-	//if count == 0 || max < txCount {
-	//	return txCount, nil
-	//}
-	//return max + 1, nil
 }
 
 func (this *WalletManager) GetNonceForAddress(address string) (uint64, error) {

@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/blocktree/ethereum-adapter/keytoken"
+	"github.com/Assetsadapter/keytoken-adapter/keytoken"
 )
 
 func main()  {
-	fmt.Printf("%s build successfully", ethereum.Symbol)
+	fmt.Printf("%s build successfully", keytoken.Symbol)
 }
