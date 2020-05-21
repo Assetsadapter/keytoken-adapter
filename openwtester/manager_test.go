@@ -21,7 +21,7 @@ func testInitWalletManager() *openw.WalletManager {
 	tc.ConfigDir = configFilePath
 	tc.EnableBlockScan = false
 	tc.SupportAssets = []string{
-		"KTO",
+		"NKTO",
 	}
 	return openw.NewWalletManager(tc)
 	//tm.Init()
@@ -74,8 +74,8 @@ func TestWalletManager_CreateAssetsAccount(t *testing.T) {
 
 	tm := testInitWalletManager()
 
-	walletID := "WH5qzrxVpyitQWBFXyEcoQbitnyb7q76pa"
-	account := &openwallet.AssetsAccount{Alias: "feesSupport", WalletID: walletID, Required: 1, Symbol: "KTO", IsTrust: true}
+	walletID := "W5iepT1Xa6isnxYPQ1TbfZaes5ibYkRgdp"
+	account := &openwallet.AssetsAccount{Alias: "feesSupport", WalletID: walletID, Required: 1, Symbol: "NKTO", IsTrust: true}
 	account, address, err := tm.CreateAssetsAccount(testApp, walletID, "12345678", account, nil)
 	if err != nil {
 		log.Error(err)
@@ -111,9 +111,9 @@ func TestWalletManager_CreateAddress(t *testing.T) {
 
 	tm := testInitWalletManager()
 
-	walletID := "WH5qzrxVpyitQWBFXyEcoQbitnyb7q76pa"
-	accountID := "AGLURjwMbPMT7QdaQvQWt66BpzZJnGsRMoz68jjoRt3u"
-	address, err := tm.CreateAddress(testApp, walletID, accountID, 100)
+	walletID := "W5iepT1Xa6isnxYPQ1TbfZaes5ibYkRgdp"
+	accountID := "9CJUd6d8naa11FmeNR6wMJSwkNkTDhEaX3gCWmz6GTpD"
+	address, err := tm.CreateAddress(testApp, walletID, accountID, 1000)
 	if err != nil {
 		log.Error(err)
 		return

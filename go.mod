@@ -17,4 +17,4 @@ require (
 	google.golang.org/grpc v1.29.1
 )
 
-replace github.com/blocktree/openwallet v1.5.5 => github.com/Assetsadapter/openwallet v1.5.5-kto-v
+replace github.com/blocktree/openwallet v1.5.5 => github.com/Assetsadapter/openwallet v1.6.0-kto-1.0.1
