@@ -51,3 +51,13 @@ func TestClient_KtoGetBlockByNum(t *testing.T) {
 	}
 	fmt.Printf("Block has=%v", block)
 }
+
+func TestClient_GetTxByHash(t *testing.T) {
+	wm := testNewWalletManager()
+	tx, err := wm.WalletClient.GetTxByHash("")
+	if err != nil {
+		t.Errorf("GetTxByHash failed, err=%v", err)
+		t.Fail()
+	}
+	fmt.Printf("Tx has=%v", tx)
+}
