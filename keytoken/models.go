@@ -55,7 +55,7 @@ type ERC20Token struct {
     balance  *big.Int
 }
 
-type EthEvent struct {
+type KtoEvent struct {
     Address string   `json:"address"`
     Topics  []string `json:"topics"`
     Data    string   `josn:"data"`
@@ -64,8 +64,8 @@ type EthEvent struct {
     Removed  bool   `json:"removed"`
 }
 
-type EthTransactionReceipt struct {
-    Logs    []EthEvent `json:"logs"`
+type KtoTransactionReceipt struct {
+    Logs    []KtoEvent `json:"logs"`
     GasUsed string     `json:"gasUsed"`
     Status  string     `json:"status"`
 }
@@ -77,7 +77,7 @@ type TransferEvent struct {
     Value           string
 }
 
-func (this *EthTransactionReceipt) ParseTransferEvent() map[string][]*TransferEvent {
+func (this *KtoTransactionReceipt) ParseTransferEvent() map[string][]*TransferEvent {
     var (
         transferEvents = make(map[string][]*TransferEvent)
     )
@@ -184,8 +184,9 @@ type BlockTransaction struct {
     Status           uint64
 }
 
-func ParseToBlockTransactions(block *message.RespBlock) []BlockTransaction {
-    result := make([]BlockTransaction, len(block.Txs))
+func ParseToBlockTransactions(msg *message.RespBlock) []BlockTransaction {
+    block := msg.Data
+    result := []BlockTransaction{}
     for _, tx := range block.Txs {
         result = append(result, BlockTransaction{
             Hash:             tx.Hash,
@@ -207,7 +208,8 @@ func ParseToBlockTransactions(block *message.RespBlock) []BlockTransaction {
     return result
 }
 
-func ParseToBlockTransaction(tx *message.Tx) *BlockTransaction {
+func ParseToBlockTransaction(msg *message.RespTxByHash) *BlockTransaction {
+    tx := msg.Data
     return &BlockTransaction{
         Hash:             tx.Hash,
         BlockNumber:      "",
@@ -274,7 +276,8 @@ type BlockHeader struct {
     BlockHeight     uint64 //RecoverBlockHeader的时候进行初始化
 }
 
-func NewBlockHeader(block *message.RespBlock) *BlockHeader {
+func NewBlockHeader(msg *message.RespBlock) *BlockHeader {
+    block := msg.Data
     return &BlockHeader{
         BlockNumber:     fmt.Sprintf("%d", block.Height),
         BlockHash:       block.Hash,

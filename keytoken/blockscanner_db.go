@@ -53,7 +53,7 @@ func (bs *KTOBLockScanner) GetLocalBlockHead() (uint64, string, error) {
 }
 
 //SaveLocalBlock 记录本地新区块
-func (bs *KTOBLockScanner) SaveLocalBlock(blockHeader *EthBlock) error {
+func (bs *KTOBLockScanner) SaveLocalBlock(blockHeader *KtoBlock) error {
 
 	if bs.BlockchainDAI == nil {
 		return fmt.Errorf("Blockchain DAI is not setup ")
@@ -70,7 +70,7 @@ func (bs *KTOBLockScanner) SaveLocalBlock(blockHeader *EthBlock) error {
 }
 
 //GetLocalBlock 获取本地区块数据
-func (bs *KTOBLockScanner) GetLocalBlock(height uint64) (*EthBlock, error) {
+func (bs *KTOBLockScanner) GetLocalBlock(height uint64) (*KtoBlock, error) {
 
 	if bs.BlockchainDAI == nil {
 		return nil, fmt.Errorf("Blockchain DAI is not setup ")
@@ -81,7 +81,7 @@ func (bs *KTOBLockScanner) GetLocalBlock(height uint64) (*EthBlock, error) {
 		return nil, err
 	}
 
-	block := &EthBlock{
+	block := &KtoBlock{
 		BlockHeader: BlockHeader{
 			BlockHash:       header.Hash,
 			BlockHeight:     header.Height,

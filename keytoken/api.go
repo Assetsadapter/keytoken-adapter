@@ -86,12 +86,12 @@ type Response struct {
     }
 */
 
-type EthBlock struct {
+type KtoBlock struct {
 	BlockHeader
 	Transactions []BlockTransaction `json:"transactions"`
 }
 
-func (this *EthBlock) CreateOpenWalletBlockHeader() *openwallet.BlockHeader {
+func (this *KtoBlock) CreateOpenWalletBlockHeader() *openwallet.BlockHeader {
 	header := &openwallet.BlockHeader{
 		Hash:              this.BlockHash,
 		Previousblockhash: this.PreviousHash,
@@ -101,7 +101,7 @@ func (this *EthBlock) CreateOpenWalletBlockHeader() *openwallet.BlockHeader {
 	return header
 }
 
-func (this *EthBlock) Init() error {
+func (this *KtoBlock) Init() error {
 	var err error
 	this.BlockHeight, err = strconv.ParseUint(removeOxFromHex(this.BlockNumber), 16, 64) //ConvertToBigInt(this.BlockNumber, 16) //
 	if err != nil {
@@ -186,22 +186,22 @@ func (this *Client) GetTxByHash(txid string) (*BlockTransaction, error) {
 	defer cancel()
 	respTx, err := this.GreeterClient.GetTxByHash(ctx, &message.ReqTxByHash{Hash: txid})
 	if err != nil {
-		log.Errorf("GetTxByHash failed, error = %s\n", err.Error())
+		log.Errorf("GetTxByHash failed, error = %s", err.Error())
 		return nil, err
 	}
 	return ParseToBlockTransaction(respTx), nil
 }
 
 // 以区块号获取区块详情
-func (this *Client) KtoGetBlockByNum(blockNum uint64) (*EthBlock, error) {
+func (this *Client) KtoGetBlockByNum(blockNum uint64) (*KtoBlock, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	respBlock, err := this.GreeterClient.GetBlockByNum(ctx, &message.ReqBlockByNumber{Height: blockNum})
 	if err != nil {
-		log.Errorf("GetBlockByNum failed, error = %s\n", err.Error())
+		log.Errorf("GetBlockByNum failed, error = %s", err.Error())
 		return nil, err
 	}
-	block := &EthBlock{
+	block := &KtoBlock{
 		BlockHeader:  *NewBlockHeader(respBlock),
 		Transactions: ParseToBlockTransactions(respBlock),
 	}
@@ -306,21 +306,23 @@ func (this *Client) ktoSendRawTransaction(from, to string, amount, nonce uint64,
 	
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	in := &message.ReqSignedTransaction{
-		From:      from,
-		To:        to,
-		Amount:    amount,
-		Nonce:     nonce,
-		Time:      time,
-		Hash:      hash,
-		Signature: signature,
+	in := &message.ReqSignedTransactions{
+		Txs: []*message.ReqSignedTransaction{&message.ReqSignedTransaction{
+			From:      from,
+			To:        to,
+			Amount:    amount,
+			Nonce:     nonce,
+			Time:      time,
+			Hash:      hash,
+			Signature: signature,
+		}},
 	}
-	respTx, err := this.GreeterClient.SendSignedTransaction(ctx, in)
+	respTx, err := this.GreeterClient.SendSignedTransactions(ctx, in)
 	if err != nil {
 		log.Errorf("SendSignedTransaction failed, error = %s \n", err.Error())
 		return "", err
 	}
-	return respTx.Hash, nil
+	return respTx.HashList[0].Hash, nil
 }
 
 // 发送需要线上签名的交易
@@ -371,22 +373,24 @@ func (this *Client) ktoSendTransaction(paraMap map[string]interface{}) (string, 
 		return "", err
 	}
 	
-	in := &message.ReqTransaction{
-		From:                 fromAddr,
-		To:                   toAddr,
-		Amount:               amountInt.Uint64(),
-		Nonce:                nonce,
-		Priv:                 priv,
+	in := &message.ReqTransactions{
+		Txs: []*message.ReqTransaction{&message.ReqTransaction{
+			From:   fromAddr,
+			To:     toAddr,
+			Amount: amountInt.Uint64(),
+			Nonce:  nonce,
+			Priv:   priv,
+		}},
 	}
 	
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	respTx, err := this.GreeterClient.SendTransaction(ctx, in)
+	respTx, err := this.GreeterClient.SendTransactions(ctx, in)
 	if err != nil {
 		log.Errorf("SendTransaction failed, error %s", err.Error())
 		return "", nil
 	}
-	return respTx.Hash, nil
+	return respTx.HashList[0].Hash, nil
 }
 
 // 获取链上最大区块号

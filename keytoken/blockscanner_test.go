@@ -17,10 +17,11 @@ package keytoken
 
 import (
 	"github.com/blocktree/openwallet/log"
+	"fmt"
 	"testing"
 )
 
-func TestWalletManager_EthGetTransactionByHash(t *testing.T) {
+func TestWalletManager_KtoGetTransactionByHash(t *testing.T) {
 	wm := testNewWalletManager()
 	txid := "0x5d5c8e90621947c9f81ddbf97e2fc32436a936562faff404f71d6186bb801752"
 	tx, err := wm.WalletClient.GetTxByHash(txid)
@@ -31,7 +32,7 @@ func TestWalletManager_EthGetTransactionByHash(t *testing.T) {
 	log.Infof("tx: %+v", tx)
 }
 
-func TestWalletManager_EthGetBlockNumber(t *testing.T) {
+func TestWalletManager_KtoGetBlockNumber(t *testing.T) {
 	wm := testNewWalletManager()
 	maxBlockHeight, err := wm.WalletClient.GetMaxBlockNumber()
 	if err != nil {
@@ -39,4 +40,14 @@ func TestWalletManager_EthGetBlockNumber(t *testing.T) {
 		return
 	}
 	log.Infof("maxBlockHeight: %v", maxBlockHeight)
+}
+
+func TestClient_KtoGetBlockByNum(t *testing.T) {
+	wm := testNewWalletManager()
+	block, err := wm.WalletClient.KtoGetBlockByNum(243382)
+	if err != nil {
+		t.Errorf("GetBlockByNumber failed, err=%v", err)
+		t.Fail()
+	}
+	fmt.Printf("Block has=%v", block)
 }
